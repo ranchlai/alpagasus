@@ -130,10 +130,10 @@ class SupervisedDataset(Dataset):
 
     def __init__(self, data_path: str, tokenizer: transformers.PreTrainedTokenizer):
         super(SupervisedDataset, self).__init__()
-        logging.warning("Loading data...")
+        logging.info("Loading data...")
         list_data_dict = utils.jload(data_path)
 
-        logging.warning("Formatting inputs...")
+        logging.info("Formatting inputs...")
         prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
         sources = [
             prompt_input.format_map(example) if example.get("input", "") != "" else prompt_no_input.format_map(example)
@@ -141,9 +141,9 @@ class SupervisedDataset(Dataset):
         ]
         targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
 
-        logging.warning("Tokenizing inputs... This may take some time...")
+        logging.info("Tokenizing inputs... This may take some time...")
         data_dict = preprocess(sources, targets, tokenizer)
-
+        logging.info("done")
         self.input_ids = data_dict["input_ids"]
         self.labels = data_dict["labels"]
 
@@ -189,12 +189,25 @@ def train():
         cache_dir=training_args.cache_dir,
     )
 
+    # fix the first few layers
+    n_fix = 300
+    for i, (name, param) in enumerate(model.named_parameters()):
+        param.requires_grad = False
+    #         print(f"fixing {name}")
+    # import pdb; pdb.set_trace()
+    
+    # set the last layer to be trainable
+    list(model.parameters())[-1].requires_grad = True
+
+    
+    
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
         model_max_length=training_args.model_max_length,
         padding_side="right",
         use_fast=False,
+        legacy=False
     )
     special_tokens_dict = dict()
     if tokenizer.pad_token is None:
